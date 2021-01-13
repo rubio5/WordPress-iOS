@@ -78,6 +78,8 @@ typedef NS_ENUM(NSUInteger, BlogFeature) {
     BlogFeatureHomepageSettings,
     /// Does the blog support stories?
     BlogFeatureStories,
+    /// Does the blog support Jetpack contact info block?
+    BlogFeatureContactInfo,
     /// Does the blog support Jetpack Scan?
     BlogFeatureJetpackScan
 };
