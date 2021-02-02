@@ -216,8 +216,6 @@ NSString * const WPCalypsoDashboardPath = @"https://wordpress.com/stats/";
 @property (nonatomic, strong) SiteIconPickerPresenter *siteIconPickerPresenter;
 @property (nonatomic, strong) ImageCropViewController *imageCropViewController;
 
-@property (nonatomic, strong) JetpackScanService *jetpackScanService;
-
 /// Used to restore the tableview selection during state restoration, and
 /// also when switching between a collapsed and expanded split view controller presentation
 @property (nonatomic, strong) NSIndexPath *restorableSelectedIndexPath;
@@ -353,10 +351,6 @@ NSString * const WPCalypsoDashboardPath = @"https://wordpress.com/stats/";
     self.blogService = [[BlogService alloc] initWithManagedObjectContext:context];
     [self preloadMetadata];
 
-    self.jetpackScanService = [[JetpackScanService alloc] initWithManagedObjectContext:context];
-
-    [self syncJetpackFeaturesAvailable];
-
     if (self.blog.account && !self.blog.account.userID) {
         // User's who upgrade may not have a userID recorded.
         AccountService *acctService = [[AccountService alloc] initWithManagedObjectContext:context];
@@ -420,6 +414,7 @@ NSString * const WPCalypsoDashboardPath = @"https://wordpress.com/stats/";
 - (void)viewDidAppear:(BOOL)animated
 {
     [super viewDidAppear:animated];
+    [self cancelCompletedToursIfNeeded];
     if ([self.tabBarController isKindOfClass:[WPTabBarController class]]) {
         [self.createButtonCoordinator showCreateButtonFor:self.blog];
     }
@@ -834,11 +829,20 @@ NSString * const WPCalypsoDashboardPath = @"https://wordpress.com/stats/";
                                                      }]];
     }
 
-    if ([self.blog supports:BlogFeatureJetpackScan]) {
-        [rows addObject:[[BlogDetailsRow alloc] initWithTitle:NSLocalizedString(@"Scan", @"Noun. Links to a blog's Jetpack Scan screen.")
-                                                        image:[UIImage gridiconOfType:GridiconTypeHistory]
+
+    if ([self.blog isBackupsAllowed] && [Feature enabled:FeatureFlagJetpackBackupAndRestore]) {
+        [rows addObject:[[BlogDetailsRow alloc] initWithTitle:NSLocalizedString(@"Backup", @"Noun. Links to a blog's Jetpack Backups screen.")
+                                                        image:[UIImage gridiconOfType:GridiconTypeCloudUpload]
                                                      callback:^{
-                                                         [weakSelf showActivity];
+                                                         [weakSelf showBackup];
+                                                     }]];
+    }
+
+    if ([self.blog isScanAllowed] && [Feature enabled:FeatureFlagJetpackScan]) {
+        [rows addObject:[[BlogDetailsRow alloc] initWithTitle:NSLocalizedString(@"Scan", @"Noun. Links to a blog's Jetpack Scan screen.")
+                                                        image:[UIImage imageNamed:@"jetpack-scan-menu-icon"]
+                                                     callback:^{
+                                                         [weakSelf showScan];
                                                      }]];
     }
 
@@ -868,6 +872,22 @@ NSString * const WPCalypsoDashboardPath = @"https://wordpress.com/stats/";
     __weak __typeof(self) weakSelf = self;
     NSMutableArray *rows = [NSMutableArray array];
 
+    BlogDetailsRow *postsRow = [[BlogDetailsRow alloc] initWithTitle:NSLocalizedString(@"Blog Posts", @"Noun. Title. Links to the blog's Posts screen.")
+                                              accessibilityIdentifier:@"Blog Post Row"
+                                                                image:[[UIImage gridiconOfType:GridiconTypePosts] imageFlippedForRightToLeftLayoutDirection]
+                                                             callback:^{
+                    [weakSelf showPostListFromSource:BlogDetailsNavigationSourceRow];
+                                                             }];
+    [rows addObject:postsRow];
+    
+    BlogDetailsRow *mediaRow = [[BlogDetailsRow alloc] initWithTitle:NSLocalizedString(@"Media", @"Noun. Title. Links to the blog's Media library.")
+                                             accessibilityIdentifier:@"Media Row"
+                                                               image:[UIImage gridiconOfType:GridiconTypeImage]
+                                                            callback:^{
+                   [weakSelf showMediaLibraryFromSource:BlogDetailsNavigationSourceRow];
+                                                            }];
+    [rows addObject:mediaRow];
+
     BlogDetailsRow *pagesRow = [[BlogDetailsRow alloc] initWithTitle:NSLocalizedString(@"Site Pages", @"Noun. Title. Links to the blog's Pages screen.")
                                              accessibilityIdentifier:@"Site Pages Row"
                                                     image:[UIImage gridiconOfType:GridiconTypePages]
@@ -877,31 +897,16 @@ NSString * const WPCalypsoDashboardPath = @"https://wordpress.com/stats/";
     pagesRow.quickStartIdentifier = QuickStartTourElementPages;
     [rows addObject:pagesRow];
 
-    [rows addObject:[[BlogDetailsRow alloc] initWithTitle:NSLocalizedString(@"Blog Posts", @"Noun. Title. Links to the blog's Posts screen.")
-                                  accessibilityIdentifier:@"Blog Post Row"
-                                                    image:[[UIImage gridiconOfType:GridiconTypePosts] imageFlippedForRightToLeftLayoutDirection]
-                                                 callback:^{
-        [weakSelf showPostListFromSource:BlogDetailsNavigationSourceRow];
-                                                 }]];
-
-
-    [rows addObject:[[BlogDetailsRow alloc] initWithTitle:NSLocalizedString(@"Media", @"Noun. Title. Links to the blog's Media library.")
-                                  accessibilityIdentifier:@"Media Row"
-                                                    image:[UIImage gridiconOfType:GridiconTypeImage]
-                                                 callback:^{
-        [weakSelf showMediaLibraryFromSource:BlogDetailsNavigationSourceRow];
-                                                 }]];
-
-    BlogDetailsRow *row = [[BlogDetailsRow alloc] initWithTitle:NSLocalizedString(@"Comments", @"Noun. Title. Links to the blog's Comments screen.")
+    BlogDetailsRow *commentsRow = [[BlogDetailsRow alloc] initWithTitle:NSLocalizedString(@"Comments", @"Noun. Title. Links to the blog's Comments screen.")
                                                           image:[[UIImage gridiconOfType:GridiconTypeComment] imageFlippedForRightToLeftLayoutDirection]
                                                        callback:^{
                                                            [weakSelf showComments];
                                                        }];
     NSUInteger numberOfPendingComments = [self.blog numberOfPendingComments];
     if (numberOfPendingComments > 0) {
-        row.detail = [NSString stringWithFormat:@"%d", numberOfPendingComments];
+        commentsRow.detail = [NSString stringWithFormat:@"%d", numberOfPendingComments];
     }
-    [rows addObject:row];
+    [rows addObject:commentsRow];
 
     NSString *title = NSLocalizedString(@"Publish", @"Section title for the publish table section in the blog details screen");
     return [[BlogDetailsSection alloc] initWithTitle:title andRows:rows category:BlogDetailsSectionCategoryPublish];
@@ -1448,27 +1453,6 @@ NSString * const WPCalypsoDashboardPath = @"https://wordpress.com/stats/";
         [self preloadComments];
         [self preloadMetadata];
     }
-
-    [self syncJetpackFeaturesAvailable];
-}
-
-/// Pings the network to determine which Jetpack features a blog supports
-- (void)syncJetpackFeaturesAvailable
-{
-    if(![Feature enabled:FeatureFlagJetpackScan]) {
-        return;
-    }
-
-    __weak __typeof(self) weakSelf = self;
-
-    [self.jetpackScanService getScanAvailableFor:self.blog success:^(BOOL available) {
-        weakSelf.blog.supportsJetpackScan = available;
-
-        [weakSelf configureTableViewData];
-        [weakSelf reloadTableViewPreservingSelection];
-    } failure:^(NSError * _Nonnull error) {
-        DDLogError(@"An error occurred while checking Jetpack Scan availablity: %@", error);
-    }];
 }
 
 - (void)preloadPosts
@@ -1686,10 +1670,25 @@ NSString * const WPCalypsoDashboardPath = @"https://wordpress.com/stats/";
 
 - (void)showActivity
 {
-    ActivityListViewController *controller = [[ActivityListViewController alloc] initWithBlog:self.blog];
+    JetpackActivityLogViewController *controller = [[JetpackActivityLogViewController alloc] initWithBlog:self.blog];
     [self showDetailViewController:controller sender:self];
 
     [[QuickStartTourGuide shared] visited:QuickStartTourElementBlogDetailNavigation];
+}
+
+- (void)showScan
+{
+    JetpackScanViewController *controller = [[JetpackScanViewController alloc] initWithBlog:self.blog];
+
+    [self showDetailViewController:controller sender:self];
+
+    [[QuickStartTourGuide shared] visited:QuickStartTourElementBlogDetailNavigation];
+}
+
+- (void)showBackup
+{
+    BackupListViewController *controller = [[BackupListViewController alloc] initWithBlog:self.blog];
+    [self showDetailViewController:controller sender:self];
 }
 
 - (void)showThemes
@@ -1717,10 +1716,6 @@ NSString * const WPCalypsoDashboardPath = @"https://wordpress.com/stats/";
 {
     [WPAppAnalytics track:WPAnalyticsStatOpenedViewSite withBlog:self.blog];
     NSURL *targetURL = [NSURL URLWithString:self.blog.homeURL];
-
-    if (self.blog.jetpack) {
-        targetURL = [targetURL appendingHideMasterbarParameters];
-    }
 
     UIViewController *webViewController = [WebViewControllerFactory controllerWithUrl:targetURL blog:self.blog];
     LightNavigationController *navController = [[LightNavigationController alloc] initWithRootViewController:webViewController];

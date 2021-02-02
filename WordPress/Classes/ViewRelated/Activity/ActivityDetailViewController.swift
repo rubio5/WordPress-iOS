@@ -2,7 +2,13 @@ import UIKit
 import Gridicons
 import WordPressUI
 
-class ActivityDetailViewController: UIViewController {
+class ActivityDetailViewController: UIViewController, StoryboardLoadable {
+
+    // MARK: - StoryboardLoadable Protocol
+
+    static var defaultStoryboardName = defaultControllerID
+
+    // MARK: - Properties
 
     var formattableActivity: FormattableActivity? {
         didSet {
@@ -12,7 +18,7 @@ class ActivityDetailViewController: UIViewController {
     }
     var site: JetpackSiteRef?
 
-    weak var rewindPresenter: ActivityRewindPresenter?
+    weak var presenter: ActivityPresenter?
 
     @IBOutlet private var imageView: CircularImageView!
 
@@ -34,12 +40,14 @@ class ActivityDetailViewController: UIViewController {
 
     @IBOutlet private var headerStackView: UIStackView!
     @IBOutlet private var rewindStackView: UIStackView!
+    @IBOutlet private var backupStackView: UIStackView!
     @IBOutlet private var contentStackView: UIStackView!
     @IBOutlet private var containerView: UIView!
 
     @IBOutlet private var bottomConstaint: NSLayoutConstraint!
 
     @IBOutlet private var rewindButton: UIButton!
+    @IBOutlet private var backupButton: UIButton!
 
     private var activity: Activity?
 
@@ -54,7 +62,17 @@ class ActivityDetailViewController: UIViewController {
     }
 
     @IBAction func rewindButtonTapped(sender: UIButton) {
-        rewindPresenter?.presentRewindFor(activity: activity!)
+        guard let activity = activity else {
+            return
+        }
+        presenter?.presentRestoreFor(activity: activity)
+    }
+
+    @IBAction func backupButtonTapped(sender: UIButton) {
+        guard let activity = activity else {
+            return
+        }
+        presenter?.presentBackupFor(activity: activity)
     }
 
     private func setupLabelStyles() {
@@ -70,6 +88,9 @@ class ActivityDetailViewController: UIViewController {
 
         rewindButton.setTitleColor(.primary, for: .normal)
         rewindButton.setTitleColor(.primaryDark, for: .highlighted)
+
+        backupButton.setTitleColor(.primary, for: .normal)
+        backupButton.setTitleColor(.primaryDark, for: .highlighted)
     }
 
     private func setupViews() {
@@ -85,8 +106,12 @@ class ActivityDetailViewController: UIViewController {
         textView.textContainer.lineFragmentPadding = 0
 
         if activity.isRewindable {
-            rewindStackView.isHidden = false
             bottomConstaint.constant = 0
+            rewindStackView.isHidden = false
+
+            if FeatureFlag.jetpackBackupAndRestore.enabled {
+                backupStackView.isHidden = false
+            }
         }
 
         if let avatar = activity.actor?.avatarURL, let avatarURL = URL(string: avatar) {
@@ -102,6 +127,9 @@ class ActivityDetailViewController: UIViewController {
 
         rewindButton.naturalContentHorizontalAlignment = .leading
         rewindButton.setImage(.gridicon(.history, size: Constants.gridiconSize), for: .normal)
+
+        backupButton.naturalContentHorizontalAlignment = .leading
+        backupButton.setImage(.gridicon(.cloudDownload, size: Constants.gridiconSize), for: .normal)
     }
 
     private func setupText() {
@@ -116,8 +144,15 @@ class ActivityDetailViewController: UIViewController {
         textView.attributedText = formattableActivity?.formattedContent(using: ActivityContentStyles())
         summaryLabel.text = activity.summary
 
-        rewindButton.setTitle(NSLocalizedString("Rewind", comment: "Title for button allowing user to rewind their Jetpack site"),
-                                                for: .normal)
+        if FeatureFlag.jetpackBackupAndRestore.enabled {
+            rewindButton.setTitle(NSLocalizedString("Restore", comment: "Title for button allowing user to restore their Jetpack site"),
+                                                    for: .normal)
+            backupButton.setTitle(NSLocalizedString("Download backup", comment: "Title for button allowing user to backup their Jetpack site"),
+                                                    for: .normal)
+        } else {
+            rewindButton.setTitle(NSLocalizedString("Rewind", comment: "Title for button allowing user to rewind their Jetpack site"),
+                                                    for: .normal)
+        }
 
         let dateFormatter = ActivityDateFormatting.longDateFormatterWithoutTime(for: site)
         dateLabel.text = dateFormatter.string(from: activity.published)

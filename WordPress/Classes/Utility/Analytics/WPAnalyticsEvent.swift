@@ -40,6 +40,7 @@ import Foundation
     // Gutenberg Features
     case gutenbergUnsupportedBlockWebViewShown
     case gutenbergUnsupportedBlockWebViewClosed
+    case gutenbergSuggestionSessionFinished
 
     // Notifications Permissions
     case pushNotificationsPrimerSeen
@@ -77,6 +78,8 @@ import Foundation
     case readerSuggestedSiteVisited
     case readerSuggestedSiteToggleFollow
     case readerDiscoverContentPresented
+    case readerPostMarkSeen
+    case readerPostMarkUnseen
 
     // What's New - Feature announcements
     case featureAnnouncementShown
@@ -93,6 +96,16 @@ import Foundation
     case jetpackDisconnectRequested
     case jetpackWhitelistedIpsViewed
     case jetpackWhitelistedIpsChanged
+    case activitylogFilterbarSelectType
+    case activitylogFilterbarResetType
+    case activitylogFilterbarTypeButtonTapped
+    case activitylogFilterbarRangeButtonTapped
+    case activitylogFilterbarSelectRange
+    case activitylogFilterbarResetRange
+    case backupListOpened
+    case backupFilterbarRangeButtonTapped
+    case backupFilterbarSelectRange
+    case backupFilterbarResetRange
 
     // Comments
     case commentViewed
@@ -166,6 +179,8 @@ import Foundation
             return "gutenberg_unsupported_block_webview_shown"
         case .gutenbergUnsupportedBlockWebViewClosed:
             return "gutenberg_unsupported_block_webview_closed"
+        case .gutenbergSuggestionSessionFinished:
+            return "suggestion_session_finished"
         // Notifications permissions
         case .pushNotificationsPrimerSeen:
             return "notifications_primer_seen"
@@ -234,11 +249,17 @@ import Foundation
             return "reader_suggested_site_toggle_follow"
         case .readerDiscoverContentPresented:
             return "reader_discover_content_presented"
+        case .readerPostMarkSeen:
+            return "reader_mark_as_seen"
+        case .readerPostMarkUnseen:
+            return "reader_mark_as_unseen"
+
         // What's New - Feature announcements
         case .featureAnnouncementShown:
             return "feature_announcement_shown"
         case .featureAnnouncementButtonTapped:
             return "feature_announcement_button_tapped"
+
         // Stories
         case .storyIntroShown:
             return "story_intro_shown"
@@ -260,6 +281,26 @@ import Foundation
             return "jetpack_whitelisted_ips_viewed"
         case .jetpackWhitelistedIpsChanged:
             return "jetpack_whitelisted_ips_changed"
+        case .activitylogFilterbarSelectType:
+            return "activitylog_filterbar_select_type"
+        case .activitylogFilterbarResetType:
+            return "activitylog_filterbar_reset_type"
+        case .activitylogFilterbarTypeButtonTapped:
+            return "activitylog_filterbar_type_button_tapped"
+        case .activitylogFilterbarRangeButtonTapped:
+            return "activitylog_filterbar_range_button_tapped"
+        case .activitylogFilterbarSelectRange:
+            return "activitylog_filterbar_select_range"
+        case .activitylogFilterbarResetRange:
+            return "activitylog_filterbar_reset_range"
+        case .backupListOpened:
+            return "backup_list_opened"
+        case .backupFilterbarRangeButtonTapped:
+            return "backup_filterbar_range_button_tapped"
+        case .backupFilterbarSelectRange:
+            return "backup_filterbar_select_range"
+        case .backupFilterbarResetRange:
+            return "backup_filterbar_reset_range"
 
         // Comments
         case .commentViewed:

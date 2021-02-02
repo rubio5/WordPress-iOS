@@ -62,7 +62,7 @@ private enum Constants {
     static let maxRetries = 12
 }
 
-private enum ActivityStoreError: Error {
+enum ActivityStoreError: Error {
     case rewindAlreadyRunning
 }
 
@@ -71,6 +71,11 @@ class ActivityStore: QueryStore<ActivityStoreState, ActivityQuery> {
     private let refreshInterval: TimeInterval = 60
 
     private let activityServiceRemote: ActivityServiceRemote?
+
+    /// When set to true, this store will only return items that are restorable
+    var onlyRestorableItems = false
+
+    var numberOfItemsPerPage = 20
 
     override func queriesChanged() {
         super.queriesChanged()
@@ -101,7 +106,7 @@ class ActivityStore: QueryStore<ActivityStoreState, ActivityQuery> {
 
         // Fetching Activities.
         sitesToFetch
-            .forEach { fetchActivities(site: $0) }
+            .forEach { fetchActivities(site: $0, count: numberOfItemsPerPage) }
 
 
         // Fetching Status
@@ -215,14 +220,34 @@ extension ActivityStore {
         return getActivities(site: site)?.filter { $0.rewindID == rewindID }.first
     }
 
-    func getRewindStatus(site: JetpackSiteRef) -> RewindStatus? {
+    func getCurrentRewindStatus(site: JetpackSiteRef) -> RewindStatus? {
         return state.rewindStatus[site] ?? nil
     }
+
+    func isRestoreAlreadyRunning(site: JetpackSiteRef) -> Bool {
+        let currentStatus = getCurrentRewindStatus(site: site)
+        let restoreStatus = currentStatus?.restore?.status
+        return currentStatus != nil && (restoreStatus == .running || restoreStatus == .queued)
+    }
+
+    func fetchRewindStatus(site: JetpackSiteRef) {
+        state.fetchingRewindStatus[site] = true
+
+        remote(site: site)?.getRewindStatus(
+            site.siteID,
+            success: { [actionDispatcher] rewindStatus in
+                actionDispatcher.dispatch(ActivityAction.rewindStatusUpdated(site: site, status: rewindStatus))
+            },
+            failure: { [actionDispatcher] error in
+                actionDispatcher.dispatch(ActivityAction.rewindStatusUpdateFailed(site: site, error: error))
+        })
+    }
+
 }
 
 private extension ActivityStore {
     func fetchActivities(site: JetpackSiteRef,
-                         count: Int = 20,
+                         count: Int,
                          offset: Int = 0,
                          afterDate: Date? = nil,
                          beforeDate: Date? = nil,
@@ -236,9 +261,19 @@ private extension ActivityStore {
             after: afterDate,
             before: beforeDate,
             group: group,
-            success: { [actionDispatcher] (activities, hasMore) in
+            success: { [weak self, actionDispatcher] (activities, hasMore) in
+                guard let self = self else {
+                    return
+                }
+
                 let loadingMore = offset > 0
-                actionDispatcher.dispatch(ActivityAction.receiveActivities(site: site, activities: activities, hasMore: hasMore, loadingMore: loadingMore))
+                actionDispatcher.dispatch(
+                    ActivityAction.receiveActivities(
+                        site: site,
+                        activities: self.onlyRestorableItems ? activities.filter { $0.isRewindable } : activities,
+                        hasMore: hasMore,
+                        loadingMore: loadingMore)
+                )
         },
             failure: { [actionDispatcher] error in
                 actionDispatcher.dispatch(ActivityAction.receiveActivitiesFailed(site: site, error: error))
@@ -288,8 +323,7 @@ private extension ActivityStore {
     }
 
     func rewind(site: JetpackSiteRef, rewindID: String) {
-        let currentStatus = getRewindStatus(site: site)
-        guard currentStatus == nil || (currentStatus?.restore?.status != .running && currentStatus?.restore?.status != .queued) else {
+        if isRestoreAlreadyRunning(site: site) {
             actionDispatcher.dispatch(ActivityAction.rewindRequestFailed(site: site, error: ActivityStoreError.rewindAlreadyRunning))
             return
         }
@@ -297,7 +331,7 @@ private extension ActivityStore {
         remoteV1(site: site)?.restoreSite(
             site.siteID,
             rewindID: rewindID,
-            success: { [actionDispatcher] restoreID in
+            success: { [actionDispatcher] restoreID, _ in
                 actionDispatcher.dispatch(ActivityAction.rewindStarted(site: site, rewindID: rewindID, restoreID: restoreID))
             },
             failure: {  [actionDispatcher] error in
@@ -360,19 +394,6 @@ private extension ActivityStore {
         let noticeAction = NoticeAction.post(Notice(title: message))
 
         actionDispatcher.dispatch(noticeAction)
-    }
-
-    func fetchRewindStatus(site: JetpackSiteRef) {
-        state.fetchingRewindStatus[site] = true
-
-        remote(site: site)?.getRewindStatus(
-            site.siteID,
-            success: { [actionDispatcher] rewindStatus in
-                actionDispatcher.dispatch(ActivityAction.rewindStatusUpdated(site: site, status: rewindStatus))
-            },
-            failure: { [actionDispatcher] error in
-                actionDispatcher.dispatch(ActivityAction.rewindStatusUpdateFailed(site: site, error: error))
-        })
     }
 
     func delayedRetryFetchRewindStatus(site: JetpackSiteRef) {
@@ -513,7 +534,7 @@ private extension ActivityStore {
         // we're gonna show users "hey, your rewind finished!". But if the only thing we know the restore is
         // that it has finished in a recent past, we don't do anything special.
 
-        return getRewindStatus(site: site)?.restore?.status == .running ||
-               getRewindStatus(site: site)?.restore?.status == .queued
+        return getCurrentRewindStatus(site: site)?.restore?.status == .running ||
+               getCurrentRewindStatus(site: site)?.restore?.status == .queued
     }
 }

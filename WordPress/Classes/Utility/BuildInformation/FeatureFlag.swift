@@ -9,7 +9,7 @@ enum FeatureFlag: Int, CaseIterable, OverrideableFlag {
     case swiftCoreData
     case homepageSettings
     case gutenbergMentions
-    case gutenbergModalLayoutPicker
+    case gutenbergXposts
     case whatIsNew
     case newNavBarAppearance
     case unifiedPrologueCarousel
@@ -18,7 +18,9 @@ enum FeatureFlag: Int, CaseIterable, OverrideableFlag {
     case siteCreationHomePagePicker
     case jetpackScan
     case activityLogFilters
-    case unseenPostCount
+    case jetpackBackupAndRestore
+    case todayWidget
+    case unseenPosts
 
     /// Returns a boolean indicating if the feature is enabled
     var enabled: Bool {
@@ -41,7 +43,7 @@ enum FeatureFlag: Int, CaseIterable, OverrideableFlag {
             return true
         case .gutenbergMentions:
             return true
-        case .gutenbergModalLayoutPicker:
+        case .gutenbergXposts:
             return true
         case .whatIsNew:
             return true
@@ -58,9 +60,13 @@ enum FeatureFlag: Int, CaseIterable, OverrideableFlag {
         case .jetpackScan:
             return BuildConfiguration.current == .localDeveloper
         case .activityLogFilters:
+            return true
+        case .jetpackBackupAndRestore:
             return BuildConfiguration.current == .localDeveloper
-        case .unseenPostCount:
-            return BuildConfiguration.current == .localDeveloper
+        case .todayWidget:
+            return true
+        case .unseenPosts:
+            return true
         }
     }
 
@@ -103,8 +109,8 @@ extension FeatureFlag {
             return "Homepage Settings"
         case .gutenbergMentions:
             return "Mentions in Gutenberg"
-        case .gutenbergModalLayoutPicker:
-            return "Gutenberg Modal Layout Picker"
+        case .gutenbergXposts:
+            return "Xposts in Gutenberg"
         case .whatIsNew:
             return "What's New / Feature Announcement"
         case .newNavBarAppearance:
@@ -121,8 +127,12 @@ extension FeatureFlag {
             return "Jetpack Scan"
         case .activityLogFilters:
             return "Jetpack's Activity Log Filters"
-        case .unseenPostCount:
-            return "Unseen Posts Count in Reader"
+        case .jetpackBackupAndRestore:
+            return "Jetpack Backup and Restore"
+        case .todayWidget:
+            return "iOS 14 Today Widget"
+        case .unseenPosts:
+            return "Unseen Posts in Reader"
         }
     }
 
@@ -133,6 +143,8 @@ extension FeatureFlag {
         case .swiftCoreData:
             return false
         case .newNavBarAppearance:
+            return false
+        case .todayWidget:
             return false
         default:
             return true
