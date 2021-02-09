@@ -94,7 +94,6 @@ NSString * const OptionsKeyIsWPForTeams = @"is_wpforteams_site";
 @synthesize isSyncingMedia;
 @synthesize xmlrpcApi = _xmlrpcApi;
 @synthesize wordPressOrgRestApi = _wordPressOrgRestApi;
-@synthesize supportsJetpackScan;
 
 #pragma mark - NSManagedObject subclass methods
 
@@ -537,9 +536,6 @@ NSString * const OptionsKeyIsWPForTeams = @"is_wpforteams_site";
             return [self supportsStories];
         case BlogFeatureContactInfo:
             return [self supportsContactInfo];
-        case BlogFeatureJetpackScan:
-            return self.supportsJetpackScan;
-
     }
 }
 
