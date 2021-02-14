@@ -186,7 +186,8 @@ class StatsInsightsStore: QueryStore<InsightStoreState, InsightQuery> {
     func persistToCoreData() {
         guard
             let siteID = SiteStatsInformation.sharedInstance.siteID,
-            let blog = BlogService.withMainContext().blog(byBlogId: siteID) else {
+            let blog = Blog.lookup(withID: siteID, in: ContextManager.shared.mainContext)
+            else {
                 return
         }
 
@@ -327,7 +328,8 @@ private extension StatsInsightsStore {
     func loadFromCache() {
         guard
             let siteID = SiteStatsInformation.sharedInstance.siteID,
-            let blog = BlogService.withMainContext().blog(byBlogId: siteID) else {
+            let blog = Blog.lookup(withID: siteID, in: ContextManager.shared.mainContext)
+             else {
                 return
         }
 
@@ -1001,9 +1003,8 @@ private extension InsightStoreState {
             DDLogError("StatsWidgets: Failed to find a matching site")
             return
         }
-        let blogService = BlogService(managedObjectContext: ContextManager.shared.mainContext)
 
-        guard let blog = blogService.blog(byBlogId: siteID) else {
+        guard let blog = Blog.lookup(withID: siteID, in: ContextManager.shared.mainContext) else {
             DDLogError("StatsWidgets: the site does not exist anymore")
             // if for any reason that site does not exist anymore, remove it from the cache.
             homeWidgetCache.removeValue(forKey: siteID.intValue)
@@ -1046,7 +1047,7 @@ private extension InsightStoreState {
         return blogService.visibleBlogsForWPComAccounts().reduce(into: [Int: T]()) { result, element in
             if let blogID = element.dotComID,
                let url = element.url,
-               let blog = blogService.blog(byBlogId: blogID) {
+               let blog = Blog.lookup(withID: blogID, in: ContextManager.shared.mainContext) {
                 // set the title to the site title, if it's not nil and not empty; otherwise use the site url
                 let title = (element.title ?? url).isEmpty ? url : element.title ?? url
                 let timeZone = blog.timeZone
